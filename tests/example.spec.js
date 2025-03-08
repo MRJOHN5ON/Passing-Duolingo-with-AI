@@ -53,22 +53,8 @@ test('sign up as new user and pass the first exam using AI', async ({ page }) =>
     ]
   });
 
-  // Safely check if chatResponse.choices exists before accessing
-  let translatedText = '';
-  const content = chatResponse?.choices?.[0]?.message?.content;
+  const translatedText = chatResponse?.choices?.[0]?.message?.content || '';
   
-  if (typeof content === 'string') {
-    translatedText = content.trim();
-  } else if (Array.isArray(content)) {
-    // Join content chunks if it's an array
-    translatedText = content.map(chunk => {
-      if (typeof chunk === 'string') return chunk;
-      // Handle different chunk types safely
-      if (chunk.type === 'text' && 'text' in chunk) return chunk.text;
-      return '';
-    }).join('').trim();
-  }
-
   if (!translatedText) {
     console.error('Translation failed or returned empty.');
     return;
