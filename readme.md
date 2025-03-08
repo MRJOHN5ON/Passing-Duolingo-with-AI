@@ -2,6 +2,9 @@
 
 A demonstration of automating Duolingo's onboarding process and first lesson using Playwright and Mistral AI.
 
+[Watch the automation in action](https://youtu.be/AVsObiLBriA)
+
+
 ## Overview
 
 This project showcases how to automate Duolingo's Russian language course by:
