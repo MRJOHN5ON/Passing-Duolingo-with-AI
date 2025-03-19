@@ -43,34 +43,122 @@ test('sign up as new user and pass the first exam using AI', async ({ page }) =>
   await continueBtn.click()
   await continueBtn.click()
 
-  const phraseToTranslate = await page.locator('[data-test="hint-token"]').getAttribute('aria-label');
-
+  // First challenge - using screenshot approach
+  // Wait for challenge to appear - updated selector based on actual HTML structure
+  await page.waitForSelector('[data-test="challenge challenge-translate"]', { timeout: 10000 });
   
-  const chatResponse = await client.agents.complete({
-    agentId: "ag:9ddbf34f:20250308:untitled-agent:6a9aabb6",
+  // Take a screenshot of the challenge area
+  const screenshotBuffer1 = await page.screenshot({
+    fullPage: false,
+    clip: {
+      x: 0,
+      y: 0,
+      width: 800,  // Adjust these values based on your screen
+      height: 600
+    }
+  });
+  
+  // Convert the screenshot to base64 for sending to the AI
+  const base64Screenshot1 = screenshotBuffer1.toString('base64');
+
+  // Send the screenshot to Mistral for analysis
+  const chatResponse1 = await client.chat.complete({
+    model: "mistral-small-latest", // Use a model with vision capabilities
     messages: [
-      { role: 'user', content: `Translate "${phraseToTranslate}" to informal English (one word only)` }
+      { 
+        role: 'user', 
+        content: [
+          { type: 'text', text: 'Look at this Duolingo challenge screenshot and tell me which word or phrase I should select as the answer. Return only the exact word(s) to click, nothing else.' },
+          { type: 'image_url', imageUrl: `data:image/png;base64,${base64Screenshot1}` }
+        ]
+      }
     ]
   });
 
-  const translatedText = chatResponse?.choices?.[0]?.message?.content || '';
+  // Handle various types that might be returned and convert to string safely
+  const responseContent = chatResponse1?.choices?.[0]?.message?.content || '';
+  const answerText1 = typeof responseContent === 'string' ? responseContent.trim() : String(responseContent).trim();
   
-  if (!translatedText) {
-    console.error('Translation failed or returned empty.');
+  if (!answerText1) {
+    console.error('AI analysis failed or returned empty for first challenge.');
     return;
   }
 
-  console.log(`Translated phrase: ${translatedText}`);
+  console.log(`AI suggested answer for first challenge: ${answerText1}`);
 
-  // Find the challenge button using class and text content
-  const translatedButton = page.locator('button._3fmUm').filter({
-    hasText: new RegExp(`^${translatedText}$`, 'i')
+  // Find and click the button with the text provided by the AI - using a more specific selector
+  const answerButton1 = page.locator(`[data-test="${answerText1}-challenge-tap-token"]`);
+  
+  await answerButton1.click();
+  await page.locator('button[data-test="player-next"]').click();
+  await page.locator('button[data-test="hearts-intro-continue-button"]').click();
+  await continueBtn.click();
+
+  // Second challenge - wait for it to appear - updated selector
+  await page.waitForSelector('[data-test="challenge challenge-translate"]', { timeout: 10000 });
+  
+  // Take a screenshot of the second challenge
+  const screenshotBuffer2 = await page.screenshot({
+    fullPage: false,
+    clip: {
+      x: 0,
+      y: 0,
+      width: 800,
+      height: 600
+    }
+  });
+  
+  // Convert the screenshot to base64
+  const base64Screenshot2 = screenshotBuffer2.toString('base64');
+
+  // Send to Mistral for analysis
+  const chatResponse2 = await client.chat.complete({
+    model: "mistral-small-latest", // Use a model with vision capabilities
+    messages: [
+      { 
+        role: 'user', 
+        content: [
+          { type: 'text', text: 'This is a Duolingo challenge. Tell me which words I need to select in order, to form the correct translation. Return only the exact words separated by comma, no explanations.' },
+          { type: 'image_url', imageUrl: `data:image/png;base64,${base64Screenshot2}` }
+        ]
+      }
+    ]
   });
 
-  // Wait for the button to be visible and click it
+  // Handle various types that might be returned and convert to string safely
+  const responseContent2 = chatResponse2?.choices?.[0]?.message?.content || '';
+  const answerText2 = typeof responseContent2 === 'string' ? responseContent2.trim() : String(responseContent2).trim();
   
-  await translatedButton.click();
-  await page.locator('button[data-test="player-next"]').click()
-  await page.locator('button[data-test="hearts-intro-continue-button"]').click()
+  if (!answerText2) {
+    console.error('AI analysis failed or returned empty for second challenge.');
+    return;
+  }
 
+  console.log(`AI suggested answers for second challenge: ${answerText2}`);
+
+  // If the AI returned multiple words separated by commas, split them
+  const wordsTap = answerText2.split(',').map(word => word.trim());
+  
+  // Click each word in order - using more specific selectors
+  for (const word of wordsTap) {
+    // Try to find the button with the specific data-test attribute first
+    const wordButton = page.locator(`[data-test="${word}-challenge-tap-token"]`);
+    
+    // If it exists, click it, otherwise try the more generic selector
+    if (await wordButton.count() > 0) {
+      await wordButton.click();
+    } else {
+      // Fallback to the previous approach
+      const backupButton = page.locator('button._3fmUm').filter({
+        hasText: new RegExp(`^${word}$`, 'i')
+      });
+      await backupButton.click();
+    }
+    
+    // Short delay between clicks to avoid race conditions
+    await page.waitForTimeout(300);
+  }
+  
+  // Click the check button or next button
+  await page.locator('button[data-test="player-next"], button[data-test="check-button"]').click();
 });
